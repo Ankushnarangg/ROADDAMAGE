@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road Crack Detection</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        header {
+            background-color: #3498db;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .upload-section {
+            background-color: white;
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+        .results-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            justify-content: center;
+        }
+        .result-card {
+            background-color: white;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            max-width: 500px;
+        }
+        .result-card h3 {
+            margin-top: 0;
+            color: #3498db;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        canvas, img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        #file-name {
+            margin-top: 1rem;
+            font-style: italic;
+            color: #666;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status {
+            margin: 1rem 0;
+            font-weight: bold;
+            color: #3498db;
+        }
+        footer {
+            text-align: center;
+            padding: 1rem;
+            background-color: #34495e;
+            color: white;
+            margin-top: 2rem;
+        }
+        .step-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .step-images canvas {
+            max-width: 200px;
+            max-height: 200px;
+        }
+        .error-message {
+            color: #e74c3c;
+            font-weight: bold;
+            margin: 1rem 0;
+        }
+        .success-message {
+            color: #2ecc71;
+            font-weight: bold;
+            margin: 1rem 0;
+        }
+        /* Image Processing Styles */
+        .image-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin: 1rem 0;
+            justify-content: center;
+        }
+        .checkbox-control {
+            display: flex;
+            align-items: center;
+            margin-right: 1rem;
+        }
+        .checkbox-control label {
+            margin-left: 0.5rem;
+        }
+        .slider-control {
+            display: flex;
+            flex-direction: column;
+            min-width: 150px;
+        }
+        .slider-control label {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Road Crack Detection System</h1>
+        <p>Upload an image to detect road cracks using image processing</p>
+    </header>
+
+    <div class="container">
+        <div class="upload-section">
+            <h2>Upload Image</h2>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            <button class="btn" id="uploadBtn">Choose File</button>
+            <div id="file-name">No file selected</div>
+            <div class="loader" id="loader"></div>
+            <div class="status" id="status">Ready to analyze road images</div>
+        </div>
+
+        <div class="results-section">
+            <div class="result-card">
+                <h3>Original Image</h3>
+                <img id="inputImage" src="/api/placeholder/480/320" alt="Input image will appear here">
+            </div>
+            <div class="result-card">
+                <h3>Detected Road Cracks</h3>
+                <canvas id="outputCanvas"></canvas>
+                <div class="image-controls">
+                    <div class="checkbox-control">
+                        <input type="checkbox" id="showEdges" checked>
+                        <label for="showEdges">Show Edges</label>
+                    </div>
+                    <div class="checkbox-control">
+                        <input type="checkbox" id="overlayOriginal" checked>
+                        <label for="overlayOriginal">Overlay on Original</label>
+                    </div>
+                    <div class="slider-control">
+                        <label for="threshold">Edge Threshold: <span id="thresholdValue">100</span></label>
+                        <input type="range" id="threshold" min="10" max="200" value="100">
+                    </div>
+                </div>
+                <button class="btn" id="processBtn" disabled>Process Image</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Road Crack Detection System © 2025</p>
+    </footer>
+
+    <script>
+        // Elements
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const processBtn = document.getElementById('processBtn');
+        const fileName = document.getElementById('file-name');
+        const inputImage = document.getElementById('inputImage');
+        const outputCanvas = document.getElementById('outputCanvas');
+        const loader = document.getElementById('loader');
+        const status = document.getElementById('status');
+        
+        // Controls
+        const showEdgesCheckbox = document.getElementById('showEdges');
+        const overlayOriginalCheckbox = document.getElementById('overlayOriginal');
+        const thresholdSlider = document.getElementById('threshold');
+        const thresholdValue = document.getElementById('thresholdValue');
+        
+        // Update threshold value display
+        thresholdSlider.addEventListener('input', function() {
+            thresholdValue.textContent = this.value;
+        });
+
+        // Event listeners
+        uploadBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileName.textContent = `Selected: ${file.name}`;
+                const reader = new FileReader();
+                reader.onload = (event) => {    
+                    inputImage.src = event.target.result;
+                    inputImage.onload = () => {
+                        processBtn.disabled = false;
+                        status.textContent = 'Image loaded. Press "Process Image" to detect cracks.';
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        processBtn.addEventListener('click', processImageWithoutOpenCV);
+        
+        // Simple image processing function without OpenCV
+        function processImageWithoutOpenCV() {
+            // Display processing status
+            loader.style.display = 'block';
+            status.textContent = 'Processing image...';
+            
+            setTimeout(() => {
+                try {
+                    // Create canvas to work with the image
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Set canvas dimensions to match the image
+                    canvas.width = inputImage.naturalWidth;
+                    canvas.height = inputImage.naturalHeight;
+                    
+                    // Draw the original image onto the canvas
+                    ctx.drawImage(inputImage, 0, 0);
+                    
+                    // Get image data for processing
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    
+                    // Create a grayscale version
+                    const grayscale = new Uint8ClampedArray(canvas.width * canvas.height);
+                    for (let i = 0; i < data.length; i += 4) {
+                        // Standard grayscale conversion
+                        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                        grayscale[i/4] = gray;
+                    }
+                    
+                    // Simple edge detection (Sobel operator approximation)
+                    const edgeData = new Uint8ClampedArray(canvas.width * canvas.height * 4);
+                    const threshold = parseInt(thresholdSlider.value);
+                    
+                    for (let y = 1; y < canvas.height - 1; y++) {
+                        for (let x = 1; x < canvas.width - 1; x++) {
+                            // Simple gradient calculation
+                            const pos = y * canvas.width + x;
+                            
+                            // Horizontal gradient approximation
+                            const gx = 
+                                -1 * grayscale[pos - canvas.width - 1] +
+                                -2 * grayscale[pos - 1] +
+                                -1 * grayscale[pos + canvas.width - 1] +
+                                1 * grayscale[pos - canvas.width + 1] +
+                                2 * grayscale[pos + 1] +
+                                1 * grayscale[pos + canvas.width + 1];
+                                
+                            // Vertical gradient approximation
+                            const gy = 
+                                -1 * grayscale[pos - canvas.width - 1] +
+                                -2 * grayscale[pos - canvas.width] +
+                                -1 * grayscale[pos - canvas.width + 1] +
+                                1 * grayscale[pos + canvas.width - 1] +
+                                2 * grayscale[pos + canvas.width] +
+                                1 * grayscale[pos + canvas.width + 1];
+                                
+                            // Gradient magnitude
+                            const magnitude = Math.sqrt(gx * gx + gy * gy);
+                            
+                            // Apply threshold
+                            const isEdge = magnitude > threshold;
+                            
+                            // Set output pixel
+                            const outPos = pos * 4;
+                            
+                            if (overlayOriginalCheckbox.checked) {
+                                // Copy original color
+                                edgeData[outPos] = data[outPos];
+                                edgeData[outPos + 1] = data[outPos + 1];
+                                edgeData[outPos + 2] = data[outPos + 2];
+                                edgeData[outPos + 3] = 255;
+                                
+                                // Overlay edge in red if detected
+                                if (isEdge && showEdgesCheckbox.checked) {
+                                    edgeData[outPos] = 255;  // Red
+                                    edgeData[outPos + 1] = 0;    // Green
+                                    edgeData[outPos + 2] = 0;    // Blue
+                                }
+                            } else {
+                                // Just show edges in white on black
+                                const edgeValue = isEdge && showEdgesCheckbox.checked ? 255 : 0;
+                                edgeData[outPos] = edgeValue;
+                                edgeData[outPos + 1] = edgeValue;
+                                edgeData[outPos + 2] = edgeValue;
+                                edgeData[outPos + 3] = 255;
+                            }
+                        }
+                    }
+                    
+                    // Display result on output canvas
+                    outputCanvas.width = canvas.width;
+                    outputCanvas.height = canvas.height;
+                    const outCtx = outputCanvas.getContext('2d');
+                    const outImageData = new ImageData(edgeData, canvas.width, canvas.height);
+                    outCtx.putImageData(outImageData, 0, 0);
+                    
+                    status.textContent = 'Processing complete! Road cracks detected.';
+                    
+                } catch (error) {
+                    status.textContent = 'Error: ' + error.message;
+                    console.error(error);
+                }
+                
+                loader.style.display = 'none';
+            }, 100);
+        }
+        
+        // Add event listeners to controls for live updates
+        [showEdgesCheckbox, overlayOriginalCheckbox, thresholdSlider].forEach(control => {
+            control.addEventListener('change', () => {
+                if (!processBtn.disabled) {
+                    processImageWithoutOpenCV();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
